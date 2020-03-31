@@ -1,0 +1,134 @@
+#import libraries
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+
+#read data
+train_X = pd.read_csv('hw1-data/X_train.csv')
+train_Y = pd.read_csv('hw1-data/Y_train.csv')
+test_X = pd.read_csv('hw1-data/X_test.csv')
+test_Y = pd.read_csv('hw1-data/X_test.csv')
+
+#check if it is standardized
+
+print(train_X.mean())
+print(train_X.std())
+print(test_X.mean())
+print(test_X.std())
+
+#yes
+
+#import as numpy arrays foe ease of manipulation
+X_train = np.genfromtxt('hw1-data/X_train.csv', delimiter=',')
+y_train = np.genfromtxt('hw1-data/y_train.csv')
+
+#a
+wRR_values = []
+df_values = []
+for i in range(0, 5001, 1):
+    lambda_value = i
+    xT = np.transpose(X_train)
+    xTx = np.dot(xT, X_train)
+    lambdaI = np.identity(xTx.shape[0]) * lambda_value
+    matinv = np.linalg.inv(lambdaI + xTx) #first term of the sum wrr
+    xTy = np.dot(xT, y_train)
+    wRR = np.dot(matinv, xTy)
+    _, S, _ = np.linalg.svd(X_train)
+    df = np.sum(np.square(S) / (np.square(S) + lambda_value))
+    wRR_values.append(wRR)
+    df_values.append(df)
+    
+plt.figure()
+labels = ["Cylinders", "Displacement", "Horsepower", "Weight", "Acceleration", "Year made", "Offset"]
+for i in range(0, wRR_values[0].shape[0]):
+    plt.plot(np.asarray(df_values), np.asarray(wRR_values))
+    plt.scatter(np.asarray(df_values), np.asarray(wRR_values)[:,i], s = 8, label=labels[i])
+plt.xlabel(r"df($\lambda$)")
+plt.legend(loc='lower left')
+plt.show()
+
+
+#c
+X_test = np.genfromtxt('hw1-data/X_test.csv', delimiter=',')
+y_test = np.genfromtxt('hw1-data/y_test.csv')
+RMSE_values = []
+for l in range(0, 51):
+    wRRvalues = np.asarray(wRR_values)[l]
+    y_pred = np.dot(X_test, wRRvalues)
+    RMSE = np.sqrt(np.sum(np.square(y_test - y_pred))/len(y_test))
+    RMSE_values.append(RMSE)
+plt.plot(range(len(RMSE_values)), RMSE_values)
+plt.scatter(range(len(RMSE_values)), RMSE_values, s = 8)
+plt.xlabel(r"$\lambda$")
+plt.ylabel("RMSE")
+# plt.legend(loc='upper left')
+plt.title(r"RMSE vs $\lambda$ on test set")
+
+
+def addPolyOrder(input_matrix, p):
+    if p == 1:
+        return input_matrix
+    elif p == 2:
+        a = input_matrix
+        b = np.power(input_matrix[:, 0:6], 2)
+        output_matrix = np.hstack((a, b))
+        return output_matrix
+    elif p == 3:
+        a = input_matrix
+        b = np.power(input_matrix[:, 0:6], 2)
+        c = np.power(input_matrix[:, 0:6], 3)
+        output_matrix = np.hstack((a, b, c))
+        return output_matrix
+
+#helper functions
+def SolveRR(X, y):
+    wRR_list = []
+    df_list = []
+    for i in range(0, 5001, 1):
+        lam_par = i
+        xtranspose = np.transpose(X)
+        xtransx = np.dot(xtranspose, X)
+        if xtransx.shape[0] != xtransx.shape[1]:
+            raise ValueError('Needs to be a square matrix for inverse')
+        lamidentity = np.identity(xtransx.shape[0]) * lam_par
+        matinv = np.linalg.inv(lamidentity + xtransx)
+        xtransy = np.dot(xtranspose, y)
+        wRR = np.dot(matinv, xtransy)
+        _, S, _ = np.linalg.svd(X)
+        df = np.sum(np.square(S) / (np.square(S) + lam_par))
+        wRR_list.append(wRR)
+        df_list.append(df)
+    return wRR_list, df_list
+
+def getRMSEValues(X_test, y_test, wRRArray, max_lamda, poly):
+    RMSE_list = []
+    for lamda in range(0, max_lamda+1):
+        wRRvals = wRRArray[lamda]
+        y_pred = np.dot(X_test, wRRvals)
+        RMSE = np.sqrt(np.sum(np.square(y_test - y_pred))/len(y_test))
+        RMSE_list.append(RMSE)
+    plotRMSEValue(max_lamda, RMSE_list, poly=poly)
+        
+def plotRMSEValue(max_lamda, RMSE_list, poly):
+    legend = ["Polynomial Order, p = 1", "Polynomial Order, p = 2", "Polynomial Order, p = 3"]
+    plt.plot(range(len(RMSE_list)), RMSE_list)
+    plt.scatter(range(len(RMSE_list)), RMSE_list, s = 8, label= legend[poly-1])
+    plt.xlabel(r"$\lambda$")
+    plt.ylabel("RMSE")
+    plt.legend(loc='lower right')
+    plt.title(r"RMSE vs $\lambda$")
+    
+def standardize(arr):
+    arr = arr - arr.mean()
+    arr = arr / arr.std()
+plt.figure()
+for i in [1, 2, 3]:
+    X_train_new = addPolyOrder(X_train, p = i)
+    X_test_new = addPolyOrder(X_test, p = i)
+    standardize(X_train_new)
+    standardize(X_test_new)
+    wRR_values, df_values = SolveRR(X_train_new, y_train)
+    wRR_Array = np.asarray(wRR_values)
+    df_Array = np.asarray(df_values)
+    getRMSEValues(X_test_new, y_test, wRR_Array, max_lamda=500, poly=i)
+plt.show()
